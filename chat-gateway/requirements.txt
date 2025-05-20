@@ -1,6 +1,9 @@
-openai>=1.0.0
 Flask
-flask-cors
+Flask-Cors
+openai
+requests
 firebase-admin
 python-dotenv
-requests
+gunicorn
+PyJWT
+cryptography
