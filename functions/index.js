@@ -6,24 +6,21 @@ const axios = require("axios");
 admin.initializeApp();
 const db = admin.firestore();
 
-// 🔥 Firebase config'ten alınan sabitler
+// Load secrets from Firebase config
 const DUMMY_JWT = functions.config().secrets.dummy_jwt;
-const GATEWAY_URL = functions.config().secrets.gateway_url;
+const GATEWAY_URL = "https://de50-212-253-192-115.ngrok-free.app";
 
 exports.onMessageCreate = onDocumentCreated("messages/{msgId}", async (event) => {
   const messageData = event.data.data();
 
-  console.log("📩 Gelen kullanıcı mesajı:", messageData.message);
-  console.log("🪪 Kullanılan JWT:", DUMMY_JWT);
+  console.log("📩 Incoming user message:", messageData.message);
 
-  // Kullanıcı mesajı değilse veya boşsa işlemi durdur
   if (!messageData || messageData.sender !== "user") {
-    console.log("Mesaj kullanıcıdan gelmiyor veya boş. İşlem durduruluyor.");
+    console.log("Message is not from a user or is empty. Aborting.");
     return;
   }
 
-  // 🔁 Bu mesaja daha önce cevap verilmiş mi kontrol et
-  // Eğer 'ai' tarafından bu 'messageData.message'a bir 'response_to' alanı ile yanıt verilmişse, tekrar işlem yapma.
+  // Avoid duplicate AI responses
   const existing = await db.collection("messages")
     .where("sender", "==", "ai")
     .where("response_to", "==", messageData.message)
@@ -31,7 +28,7 @@ exports.onMessageCreate = onDocumentCreated("messages/{msgId}", async (event) =>
     .get();
 
   if (!existing.empty) {
-    console.log("⏩ Bu mesaja zaten cevap verilmiş, atlanıyor...");
+    console.log("⏩ Message already handled. Skipping duplicate response.");
     return;
   }
 
@@ -41,42 +38,36 @@ exports.onMessageCreate = onDocumentCreated("messages/{msgId}", async (event) =>
   };
 
   try {
-    // Axios çağrısı: validateStatus sayesinde 4xx ve 5xx gibi durumlar catch'e düşmez,
-    // yanıt 'res.data' ve 'res.status' üzerinden kontrol edilir.
     const res = await axios.post(GATEWAY_URL, payload, {
-      validateStatus: () => true // Tüm durum kodlarını başarılı olarak kabul et
+      validateStatus: () => true
     });
 
-    console.log("✅ Gateway Yanıtı:", res.data);
-    console.log("HTTP Durum Kodu:", res.status);
+    console.log("✅ Gateway Response:", res.data);
+    console.log("HTTP Status Code:", res.status);
     const responseData = res.data;
 
-    // Gateway'den bir hata mesajı gelip gelmediğini kontrol et
-    // Postman çıktına göre hata 'error' alanı içinde geliyor.
+    // Handle explicit error returned by Gateway
     if (responseData && responseData.error) {
-      console.log("⚠️ Gateway'den hata yanıtı alındı:", responseData.error);
+      console.log("⚠️ Gateway returned an error:", responseData.error);
       await db.collection("messages").add({
         sender: "ai",
-        // Hata mesajını doğrudan 'message' alanına yaz, böylece frontend tekil olarak işleyebilir.
         message: {
-          error: responseData.error, // Spesifik hata mesajı
+          error: responseData.error,
         },
         response_to: messageData.message,
         timestamp: admin.firestore.FieldValue.serverTimestamp()
       });
-      // Hata mesajı yazıldıktan sonra fonksiyonu sonlandır, catch bloğuna düşmesini engelle
       return;
     }
 
-    // HTTP durum kodu 2xx değilse ve responseData içinde error yoksa, bu da bir hatadır.
-    // Örneğin, Gateway'den 404 dönüp de error alanı boş gelirse.
+    // Handle HTTP-level error without specific error message
     if (res.status >= 400) {
-      console.error(`❌ Gateway'den hata durum kodu (${res.status}) alındı, ancak spesifik hata mesajı yok.`);
+      console.error(`❌ Gateway returned error status (${res.status}) without explicit error message.`);
       await db.collection("messages").add({
         sender: "ai",
         message: {
           error: `API Error: Gateway returned status ${res.status}`,
-          details: responseData ? JSON.stringify(responseData) : "No specific error details from Gateway."
+          details: responseData ? JSON.stringify(responseData) : "No additional error details provided."
         },
         response_to: messageData.message,
         timestamp: admin.firestore.FieldValue.serverTimestamp()
@@ -84,22 +75,19 @@ exports.onMessageCreate = onDocumentCreated("messages/{msgId}", async (event) =>
       return;
     }
 
-    // Başarılı yanıt durumu
+    // Save successful response
     await db.collection("messages").add({
       sender: "ai",
-      message: responseData, // Gateway'den gelen başarılı yanıtı doğrudan kaydet
+      message: responseData,
       response_to: messageData.message,
       timestamp: admin.firestore.FieldValue.serverTimestamp()
     });
-    console.log("✔️ Başarılı yanıt Firestore'a yazıldı.");
+    console.log("✔️ AI response successfully written to Firestore.");
 
   } catch (error) {
-    // Axios'un kendisinden kaynaklanan bir ağ hatası veya kod hatası durumunda buraya düşer.
-    // validateStatus: () => true olduğu için buraya nadiren düşülmeli.
-    console.error("❌ AXIOS HATA VEYA İŞLENEMEYEN KOD HATASI:", error.message);
+    console.error("❌ AXIOS or unexpected runtime error:", error.message);
 
-    // Bu catch bloğuna düşüldüğünde (genellikle ağ hataları), daha önce yanıt verilip verilmediğini kontrol etmek
-    // hala önemli olabilir, ancak genellikle bu bir ilktir.
+    // Avoid duplicate error logging
     const alreadyResponded = await db.collection("messages")
       .where("sender", "==", "ai")
       .where("response_to", "==", messageData.message)
@@ -107,19 +95,20 @@ exports.onMessageCreate = onDocumentCreated("messages/{msgId}", async (event) =>
       .get();
 
     if (!alreadyResponded.empty) {
-      console.log("⛔ Yinelenen hata günlüğe kaydedilmesi atlanıyor (zaten bir yanıt/hata yazılmış olabilir).");
+      console.log("⛔ Skipping duplicate error log entry.");
       return;
     }
 
+    // Log general error
     await db.collection("messages").add({
       sender: "ai",
       message: {
-        error: "API Çağrısı Hatası", // Daha genel bir hata mesajı
-        details: error.message // Detaylar
+        error: "API Call Error",
+        details: error.message
       },
       response_to: messageData.message,
       timestamp: admin.firestore.FieldValue.serverTimestamp()
     });
-    console.log("❌ Genel API çağrısı hatası Firestore'a yazıldı.");
+    console.log("❌ General API call error written to Firestore.");
   }
 });

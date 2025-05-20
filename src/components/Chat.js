@@ -12,7 +12,7 @@ import axios from "axios";
 import MessageBubble from "./MessageBubble";
 import Loader from "./Loader";
 import "../styles/Chat.css";
-const DUMMY_JWT = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc0NzY5Njk5OCwianRpIjoiYjBjMTliMmEtYWRmMS00ZjQzLTk0Y2ItMmYwMGRhZDI0ZjQxIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IjEyMyIsIm5iZiI6MTc0NzY5Njk5OCwiY3NyZiI6ImRhYjI0ODk5LWM2M2ItNGI4NC1hNmM2LWVjMmIyN2EyOTQzYiIsImV4cCI6MTc0Nzc4MzM5OH0.-s5xj7SowuJbJZzz_AJM0U_fL9DGBSQs9RiL2uKjoQ8";
+const DUMMY_JWT = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc0Nzc2MTQyMywianRpIjoiNGRiYzA5NWMtZDFkMS00N2MzLTlhZmQtOGNmODcwZjljYzIxIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IjEyMyIsIm5iZiI6MTc0Nzc2MTQyMywiY3NyZiI6IjJjMDY3NTljLTE5OGMtNDg1Ni05OWNlLWM3OGUzMzZhYjgwYyIsImV4cCI6MTc0Nzg0NzgyM30.bWvimiZ0kv90698UQ60ErxxcMRwiVOPCOJEtPV66QNc";
 const Chat = () => {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState([]);

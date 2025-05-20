@@ -14,7 +14,6 @@ const MessageBubble = ({ sender, text }) => {
   const renderAIContent = () => {
     if (!parsed || typeof parsed !== "object") return <span>{text}</span>;
 
-    // ✅ Hatalar: sadece 1 kez ve sade şekilde göster
     if (parsed.error) {
       return (
         <div className="ai-card error">
@@ -80,7 +79,7 @@ const MessageBubble = ({ sender, text }) => {
       );
     }
 
-    // Diğer tüm durumlar (fallback)
+    // (fallback)
     return <pre>{JSON.stringify(parsed, null, 2)}</pre>;
   };
 

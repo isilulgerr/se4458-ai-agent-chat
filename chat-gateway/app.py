@@ -9,63 +9,74 @@ from google.cloud.firestore_v1 import SERVER_TIMESTAMP
 from dotenv import load_dotenv
 import json
 
+# Load environment variables
 load_dotenv()
-DUMMY_JWT = os.getenv("DUMMY_JWT")
 
-# OpenAI ve Midterm API URL
+DUMMY_JWT = os.getenv("DUMMY_JWT")
 openai.api_key = os.getenv("OPENAI_API_KEY")
 MIDTERM_API_URL = os.getenv("MIDTERM_API_URL")
-
-# Firebase başlat
-cred = credentials.Certificate("firebase_config.json")
-firebase_admin.initialize_app(cred)
-db = firestore.client()
 firebase_config_str = os.getenv("FIREBASE_CONFIG_JSON")
+
+# Load Firebase config (from env or local file)
 if not firebase_config_str:
-    # Lokal geliştirmede firebase_config.json dosyasından okuma
     try:
-        with open("firebase_config.json", "r", encoding="utf-8") as f:
+        with open("firebase_config.json", "r") as f:
             firebase_config = json.load(f)
-    except FileNotFoundError as exc:
-        # Hem ortam değişkeni hem de dosya yoksa hata ver
-        raise ValueError("FIREBASE_CONFIG_JSON environment variable or firebase_config.json file is missing.") from exc
+        print("Loaded Firebase config from local file.")
+    except FileNotFoundError:
+        raise ValueError("Missing FIREBASE_CONFIG_JSON env variable or firebase_config.json file.")
 else:
     firebase_config = json.loads(firebase_config_str)
+    print("Loaded Firebase config from environment variable.")
 
+# Initialize Firebase
 cred = credentials.Certificate(firebase_config)
-firebase_admin.initialize_app(cred)
+if not firebase_admin._apps:
+    firebase_admin.initialize_app(cred)
 db = firestore.client()
-# Flask setup
-print(">> LOADED APP <<")
+print("✅ Firebase initialized.")
+
+# Initialize Flask app
 app = Flask(__name__)
-print("Gateway app loaded!")
 CORS(app)
+print("✅ Gateway API is loaded and CORS enabled.")
 
 @app.route("/ping", methods=["GET"])
 def ping():
+    """Simple health check endpoint."""
     return jsonify({"msg": "pong"}), 200
+
 
 @app.route("/gateway/message", methods=["POST"])
 def handle_message():
+    """
+    Handles a user message:
+    - Extracts intent and parameters using OpenAI
+    - Routes to Midterm API
+    - Saves the response to Firestore
+    """
     data = request.get_json(force=True, silent=True) or {}
     message = data.get("message")
     sender = data.get("sender")
+    message_id = data.get("message_id")
 
     if not message:
-        return jsonify({"status": "error", "message": "Missing 'message' field"}), 400
+        print("❌ Missing 'message' field in request.")
+        return jsonify({"error": "Missing 'message' field"}), 400
 
-    # Gelişmiş prompt
     system_prompt = (
         "You are an API command generator. For each user message, respond ONLY with a JSON like this:\n"
         '{ "intent": "calculate_bill", "parameters": { "subscriber_id": "123", "month": "2025-12" } }\n'
         'or:\n'
         '{ "intent": "pay_bill", "parameters": { "subscriber_id": "123", "month": "2025-12" } }\n'
-        "Valid intents: calculate_bill, pay_bill, get_bill_details.\n" # get_bill_details intent'ini de ekledim
+        'or:\n'
+        '{ "intent": "get_bill_details", "parameters": { "subscriber_id": "123", "month": "2025-12" } }\n'
+        "Valid intents: calculate_bill, pay_bill, get_bill_details.\n"
         "Respond ONLY with valid JSON. No explanations."
     )
 
-    parsed_json = {} # parsed_json'ı tanımladım
     try:
+        print(f"🔍 Sending message to OpenAI: '{message}'")
         response = openai.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
@@ -75,90 +86,67 @@ def handle_message():
             max_tokens=150,
             temperature=0.0
         )
-        parsed = response.choices[0].message.content.strip()
-        parsed_json = json.loads(parsed)
-        intent = parsed_json.get("intent")
-        params = parsed_json.get("parameters", {})
-        print("LLM Output - Calling Midterm API with intent:", intent, "and params:", params)
+        llm_output_text = response.choices[0].message.content.strip()
+        print(f"🧠 OpenAI raw response: {llm_output_text}")
+        parsed_llm_json = json.loads(llm_output_text)
+        intent = parsed_llm_json.get("intent")
+        params = parsed_llm_json.get("parameters", {})
+        print(f"✅ Extracted intent: {intent}, parameters: {params}")
 
+    except json.JSONDecodeError as e:
+        print(f"❌ Failed to parse OpenAI JSON. Details: {e}")
+        return jsonify({"error": "LLM parsing failed", "details": "Invalid JSON from LLM"}), 500
     except Exception as e:
-        # LLM parsing hatasını standart hata formatında döndür
-        return jsonify({"status": "error", "message": "LLM intent/parameter parsing failed", "details": str(e)}), 500
+        print(f"❌ OpenAI API error: {e}")
+        return jsonify({"error": "LLM API failed", "details": str(e)}), 500
 
     midterm_response_data = {}
-    midterm_status_code = 500 # Varsayılan hata kodu
-
-    # Midterm API’ye yönlendir
+    midterm_status_code = 500
     try:
         headers = {"Authorization": f"Bearer {sender}"}
-        midterm_api_url = None
-        method = None
 
         if intent == "calculate_bill":
-            midterm_api_url = f"{MIDTERM_API_URL}/calculate-bill"
-            method = "post"
+            print(f"📡 Sending 'calculate-bill' request to Midterm API: {params}")
+            midterm_response = requests.post(f"{MIDTERM_API_URL}/calculate-bill", json=params, headers=headers)
         elif intent == "get_bill_details":
-            midterm_api_url = f"{MIDTERM_API_URL}/bill/details"
-            method = "get"
+            print(f"📡 Sending 'bill/details' request to Midterm API: {params}")
+            midterm_response = requests.get(f"{MIDTERM_API_URL}/bill/details", params=params, headers=headers)
         elif intent == "pay_bill":
-            midterm_api_url = f"{MIDTERM_API_URL}/pay-bill"
-            method = "post"
+            print(f"📡 Sending 'pay-bill' request to Midterm API: {params}")
+            midterm_response = requests.post(f"{MIDTERM_API_URL}/pay-bill", json=params, headers=headers)
         else:
-            # Bilinmeyen intent durumunu standart hata formatında döndür
-            return jsonify({"status": "error", "message": "Unknown intent", "details": f"Intent: {intent}"}), 400
+            print(f"❌ Unknown intent: {intent}")
+            return jsonify({"error": "Unknown intent", "details": f"Intent '{intent}' is not recognized."}), 400
 
-        if method == "post":
-            midterm_response = requests.post(midterm_api_url, json=params, headers=headers)
-        elif method == "get":
-            midterm_response = requests.get(midterm_api_url, params=params, headers=headers)
-        
         midterm_status_code = midterm_response.status_code
+        print(f"🔁 Midterm API returned status code: {midterm_status_code}")
 
         try:
-            # Midterm API'den gelen yanıtı JSON olarak ayrıştırmaya çalış
             midterm_response_data = midterm_response.json()
         except json.JSONDecodeError:
-            # JSON formatında olmayan yanıtları veya boş yanıtları hata olarak ele al
-            midterm_response_data = {"message": midterm_response.text if midterm_response.text else "Midterm API returned non-JSON or empty response"}
-            if midterm_response.status_code >= 400:
-                midterm_response_data["status"] = "error" # Hata durumunda statüsü 'error' yap
-                midterm_response_data["details"] = f"HTTP Status: {midterm_response.status_code}"
-
-        # Midterm API'den 4xx veya 5xx durum kodu gelirse veya yanıt içinde 'error' alanı varsa
-        if midterm_status_code >= 400:
-            error_message = (midterm_response_data.get("error") or # Postman'da gördüğün {"error": "No usage found..."} formatı için
-                             midterm_response_data.get("message") or # Diğer olası hata mesajı alanları
-                             f"Midterm API Error: Status {midterm_status_code}")
-
-            # Gateway'den standardize edilmiş hata yanıtı döndür
-            return jsonify({"status": "error", "message": error_message, "details": midterm_response_data}), midterm_status_code
-        
-        # Başarılı yanıt durumunda
-        final_response_data = {"status": "success", "data": midterm_response_data}
-
+            print("❌ Midterm API returned non-JSON response.")
+            midterm_response_data = {
+                "error": "Invalid response format from Midterm API",
+                "details": midterm_response.text
+            }
 
     except requests.exceptions.RequestException as e:
-        # Midterm API'ye istek atılamaması (ağ hatası, sunucu kapalı vb.) durumunu yakala
-        # Standart hata formatında döndür
-        return jsonify({"status": "error", "message": "Midterm API request failed", "details": str(e)}), 503 # Service Unavailable
+        print(f"❌ Failed to reach Midterm API. Details: {e}")
+        midterm_response_data = {"error": "Midterm API request failed", "details": str(e)}
+        return jsonify(midterm_response_data), 500
 
-    # Firestore’a başarılı yanıtı yaz (sadece başarılı durumlarda)
-    # Hata durumları zaten yukarıda return ile sonlandırılıyor.
+    # Save response to Firestore
     db.collection("messages").add({
         "sender": "ai",
-        "message": final_response_data, # Standartlaştırılmış başarılı yanıtı kaydet
+        "message": midterm_response_data,
         "timestamp": SERVER_TIMESTAMP,
-        "response_to": message
+        "response_to": message_id or message
     })
-    print(">> Parsed JSON from OpenAI:", parsed_json) # Bu LLM'den gelen intent/params
-    print(">> Midterm response status:", midterm_status_code)
-    print("LLM Output:", parsed_json) # Bu LLM'den gelen intent/params
-    print("Authorization header:", request.headers.get("Authorization"))
-    print("📥 Gelen sender:", sender)
+    print("✅ AI response saved to Firestore.")
 
-    # Gateway'den istemciye (Cloud Function) standart yanıtı döndür
-    return jsonify(final_response_data), 200 # Başarılı yanıt her zaman 200 dönsün
+    return jsonify(midterm_response_data), midterm_status_code
+
 
 if __name__ == "__main__":
-    print("Starting app...")
-    app.run(debug=True)
+    print("🚀 Starting Gateway App...")
+    app.run(debug=True, host='0.0.0.0', port=int(os.getenv("PORT", 5000)))
