@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 import json
 
 # Load environment variables
+
 load_dotenv()
 
 DUMMY_JWT = os.getenv("DUMMY_JWT")
