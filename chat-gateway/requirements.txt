@@ -1,9 +1,9 @@
 Flask
+gunicorn
 Flask-Cors
 openai
 requests
 firebase-admin
 python-dotenv
-gunicorn
 PyJWT
 cryptography
