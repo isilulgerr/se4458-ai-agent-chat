@@ -1,0 +1,6 @@
+openai>=1.0.0
+Flask
+flask-cors
+firebase-admin
+python-dotenv
+requests

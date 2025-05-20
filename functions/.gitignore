@@ -1,0 +1,18 @@
+# Environment variables
+.env
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.flaskenv
+chat-gateway/firebase_config.json # Gateway'deki firebase config dosyasını atma
+# Eğer midterm api kodun da buradaysa, onun da firebase configini ekleyebilirsin
+# midterm-api/firebase_config.json
+
+# Node.js
+node_modules/
+functions/firebase_config.json # functions klasöründeki firebase config dosyasını atma
+# React App (frontend)
+frontend/build/
+frontend/node_modules/

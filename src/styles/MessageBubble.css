@@ -1,0 +1,67 @@
+.bubble-wrapper {
+  display: flex;
+  margin: 10px;
+  justify-content: flex-start;
+}
+
+.bubble-wrapper.user {
+  justify-content: flex-end;
+}
+
+.bubble {
+  padding: 12px 16px;
+  border-radius: 16px;
+  max-width: 80%;
+  word-wrap: break-word;
+  font-size: 14px;
+  white-space: pre-line;
+  line-height: 1.4;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease-in-out;
+}
+
+.user-bubble {
+  background-color: #007bff;
+  color: white;
+  border-top-right-radius: 0;
+  align-self: flex-end;
+}
+
+.ai-bubble {
+  background-color: #f1f0f0;
+  color: #222;
+  border-top-left-radius: 0;
+  align-self: flex-start;
+}
+
+/* AI JSON İçeriği için özel kart görünümü */
+.ai-card {
+  background-color: #fff;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-top: 5px;
+  font-family: "Courier New", monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-line;
+}
+
+.ai-card h4 {
+  margin: 0 0 8px 0;
+  font-size: 15px;
+  font-weight: bold;
+  color: #333;
+}
+
+.ai-card p {
+  margin: 4px 0;
+}
+
+.ai-card.success {
+  border-left: 4px solid #28a745;
+}
+
+.ai-card.error {
+  border-left: 4px solid #dc3545;
+}
