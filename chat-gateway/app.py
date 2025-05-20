@@ -20,7 +20,21 @@ MIDTERM_API_URL = os.getenv("MIDTERM_API_URL")
 cred = credentials.Certificate("firebase_config.json")
 firebase_admin.initialize_app(cred)
 db = firestore.client()
+firebase_config_str = os.getenv("FIREBASE_CONFIG_JSON")
+if not firebase_config_str:
+    # Lokal geliştirmede firebase_config.json dosyasından okuma
+    try:
+        with open("firebase_config.json", "r", encoding="utf-8") as f:
+            firebase_config = json.load(f)
+    except FileNotFoundError as exc:
+        # Hem ortam değişkeni hem de dosya yoksa hata ver
+        raise ValueError("FIREBASE_CONFIG_JSON environment variable or firebase_config.json file is missing.") from exc
+else:
+    firebase_config = json.loads(firebase_config_str)
 
+cred = credentials.Certificate(firebase_config)
+firebase_admin.initialize_app(cred)
+db = firestore.client()
 # Flask setup
 print(">> LOADED APP <<")
 app = Flask(__name__)
