@@ -1,70 +1,97 @@
-# Getting Started with Create React App
+# 🔌 Gateway API for SE4458 Mobile Billing System
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+This is a Flask-based Gateway API built as part of the SE4458 course assignment project. It connects a chat-based frontend (via Firebase) with the Midterm API backend. The gateway extracts intent from user messages using OpenAI GPT, then securely routes requests to the backend using JWT.
 
-## Available Scripts
+---
 
-In the project directory, you can run:
+## 📁 Source Code
 
-### `npm start`
+👉 [View Full Project on GitHub](https://github.com/isilulgerr/se4458-gateway-api)
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+---
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## 🎬 Video Presentation
 
-### `npm test`
+📺 [Click to Watch Project Demo](https://drive.google.com/drive/folders/19rEQja9tu-O9IlGBLkqARx_J4neUVG7N?usp=drive_link)
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+---
 
-### `npm run build`
+## 🏗️ Project Design
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+The system consists of three main layers:
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+1. **Firebase Cloud Function**  
+   - Listens for new user messages from Firestore  
+   - Sends them to the gateway API with a JWT token
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+2. **Gateway API (Flask)**  
+   - Receives the message and token  
+   - Uses OpenAI GPT to extract structured intent (e.g., `calculate_bill`, `pay_bill`)  
+   - Sends the structured request to the Midterm API  
+   - Returns the result to Firestore as an AI response
 
-### `npm run eject`
+3. **Midterm Billing API**  
+   - Processes billing logic and returns responses based on intent
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+---
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## 📌 Assumptions
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+- All user messages contain intent that can be interpreted by GPT in a single step
+- The backend API supports all defined intents (calculate, pay, get bill)
+- JWT token passed from Firebase is valid and maps to a known subscriber
+- The Midterm API returns JSON-formatted responses
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+### 🐛 Issues Encountered
+- GitHub Push Protection blocked commits containing .env files with secrets; resolved via BFG Repo Cleaner and .gitignore update.
 
-## Learn More
+- Initial deployment to Render failed due to gunicorn not being installed correctly and build commands not being recognized.
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+- While trying Firebase Cloud Functions, we had difficulties passing headers securely to the gateway and verifying if a response already existed.
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+- ngrok occasionally failed with gateway connection.
 
-### Code Splitting
+- Firebase Firestore requires unique handling of duplicate message responses; Firestore triggers were refined accordingly.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+---
 
-### Analyzing the Bundle Size
+## ⚠️ Development Decisions & Issues Encountered
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+- 🔍 **OpenAI Integration**: Special care was taken to ensure GPT always returned valid JSON. Fallbacks and error handling were added for robustness.
+- 🌐 **Deployment Options Explored**:  
+  Render and cloud-based hosting were initially evaluated. However, for more controlled testing and flexible debugging, a local-first approach was adopted using **ngrok**.
+- 🛠️ **Ngrok Tunneling**: Enabled seamless external access to the local gateway API. Cloud Function was configured to target the latest ngrok URL.
+- 🔐 **JWT Handling**: Proper authorization headers were included in all Midterm API calls.
+- 🧠 **Duplicate Firebase Initialization**: Prevented with `if not firebase_admin._apps` guard.
+- ❗ **Error Standardization**: All responses (success or error) follow a consistent JSON format to support frontend rendering.
 
-### Making a Progressive Web App
+---
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+## ✅ How to Run the Gateway API
 
-### Advanced Configuration
+### 🔧 Prerequisites:
+- Python 3.9+
+- OpenAI API Key
+- Ngrok (for tunneling)
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+### 🧪 Local Setup:
 
-### Deployment
+1. Clone the repo and install dependencies:
+   ```bash
+   pip install -r requirements.txt
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+### 💡 Technologies Used
+Python (Flask)
 
-### `npm run build` fails to minify
+Firebase Admin SDK
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+Firestore Database
+
+OpenAI GPT-3.5 Turbo API
+
+Ngrok (secure local tunnel)
+
+Postman (for testing)
+
+### 👤 Developer
+Işıl Ülger
