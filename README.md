@@ -61,7 +61,7 @@ The system consists of three main layers:
 - 🌐 **Deployment Options Explored**:  
   Render and cloud-based hosting were initially evaluated. However, for more controlled testing and flexible debugging, a local-first approach was adopted using **ngrok**.
 - 🛠️ **Ngrok Tunneling**: Enabled seamless external access to the local gateway API. Cloud Function was configured to target the latest ngrok URL.
-- 🔐 **JWT Handling**: Proper authorization headers were included in all Midterm API calls.
+- 🔐 **JWT Handling**: Proper authorization headers were included in all Midterm API calls. Finally, dummy token included.
 - 🧠 **Duplicate Firebase Initialization**: Prevented with `if not firebase_admin._apps` guard.
 - ❗ **Error Standardization**: All responses (success or error) follow a consistent JSON format to support frontend rendering.
 
